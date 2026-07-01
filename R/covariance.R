@@ -87,16 +87,23 @@ make_eb_covariance <- function(tree, rate) {
   if (!isTRUE(ape::is.rooted(tree))) {
     stop("tree must be rooted for EB covariance construction.")
   }
-  if (!isTRUE(ape::is.ultrametric(tree))) {
-    stop("tree must be ultrametric for EB covariance construction.")
-  }
 
   node_depths <- ape::node.depth.edgelength(tree)
-  parent_times <- node_depths[tree$edge[, 1]]
-  child_times <- node_depths[tree$edge[, 2]]
+  tip_depths <- node_depths[seq_len(ape::Ntip(tree))]
+  ultrametric_tol <- 1e-6 * max(1, max(tip_depths))
+  if ((max(tip_depths) - min(tip_depths)) > ultrametric_tol) {
+    stop("tree must be ultrametric for EB covariance construction.")
+  }
+  tree_height <- mean(tip_depths)
+  if (!is.finite(tree_height) || tree_height <= 0) {
+    stop("tree height must be positive for EB covariance construction.")
+  }
+  parent_times <- node_depths[tree$edge[, 1]] / tree_height
+  child_times <- node_depths[tree$edge[, 2]] / tree_height
 
   eb_tree <- tree
-  eb_tree$edge.length <- (exp(rate * child_times) - exp(rate * parent_times)) / rate
+  eb_tree$edge.length <- tree_height *
+    (exp(rate * child_times) - exp(rate * parent_times)) / rate
   eb_tree$edge.length <- pmax(eb_tree$edge.length, 0)
 
   V_eb <- ape::vcv.phylo(eb_tree, corr = FALSE)
